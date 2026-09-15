@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ profile_user['username'] }} — FlyCord{% endblock %}
+
+{% block content %}
+<div class="grid grid-single">
+  <section class="col-center">
+    <div class="card profile-header">
+      {{ avatar_html(profile_user, 'avatar-lg') }}
+      <div class="profile-header-info">
+        <h2 class="profile-username">
+          {{ profile_user['username'] }}
+          {% if profile_user['username'] in admin_usernames %}<span class="admin-badge" title="Admin">🛡️ Admin</span>
+          {% elif profile_user['is_verified'] %}<span class="verified-badge" title="Verified">✔️ Verified</span>{% endif %}
+        </h2>
+        {% if profile_user['bio'] %}<p class="profile-bio">{{ profile_user['bio'] }}</p>{% endif %}
+        <p class="muted small">{{ posts | length }} broadcast{{ 's' if posts|length != 1 else '' }} · joined {{ profile_user['created_at'][:10] }}</p>
+      </div>
+      {% if current_user and current_user['id'] == profile_user['id'] %}
+      <a class="btn btn-secondary" href="{{ url_for('settings') }}">Edit profile</a>
+      {% else %}
+      <a class="btn btn-primary" href="{{ url_for('message_thread', username=profile_user['username']) }}">✉️ Message</a>
+      {% endif %}
+    </div>
+
+    {% if current_user and current_user['id'] != profile_user['id'] %}
+    <details class="card report-details report-details-card">
+      <summary class="report-summary">🚩 Report this account</summary>
+      <form method="post" action="{{ url_for('report_user', username=profile_user['username']) }}" class="report-form">
+        <input type="text" name="reason" maxlength="300" placeholder="Why are you reporting this account?" required>
+        <button type="submit" class="btn btn-secondary btn-small">Submit report</button>
+      </form>
+    </details>
+    {% endif %}
+
+    {% if is_admin and current_user['id'] != profile_user['id'] and profile_user['username'] not in admin_usernames %}
+    <div class="card admin-panel">
+      <h3 class="card-title">🛡️ Admin controls</h3>
+      {% if target_is_banned %}
+      <p>🚫 This account is currently banned <strong>{{ target_ban_label }}</strong>.</p>
+      <div class="ban-action-row">
+        <form method="post" action="{{ url_for('unban_user', username=profile_user['username']) }}">
+          <button type="submit" class="btn btn-secondary btn-small">Unban</button>
+        </form>
+        <form method="post" action="{{ url_for('delete_user', username=profile_user['username']) }}"
+              onsubmit="return confirm('Permanently delete {{ profile_user['username'] }}\'s account? This deletes all their broadcasts, comments, likes, and messages. This cannot be undone.');">
+          <button type="submit" class="btn btn-danger btn-small">🗑️ Delete account permanently</button>
+        </form>
+      </div>
+      {% else %}
+      <form method="post" action="{{ url_for('ban_user', username=profile_user['username']) }}" class="ban-form">
+        <div class="ban-duration-row">
+          <input type="number" name="amount" min="1" value="1" class="ban-amount">
+          <select name="unit" class="ban-unit">
+            <option value="minutes">Minutes</option>
+            <option value="hours" selected>Hours</option>
+            <option value="days">Days</option>
+          </select>
+          <button type="submit" name="mode" value="temp" class="btn btn-secondary btn-small">Ban for this long</button>
+        </div>
+        <button type="submit" name="mode" value="forever" class="btn btn-primary btn-small">Ban forever</button>
+      </form>
+      <p class="muted small">Deleting an account is only available once it's banned — a safety rail against accidental deletion.</p>
+      {% endif %}
+
+      <div class="admin-panel-divider"></div>
+
+      {% if profile_user['is_verified'] %}
+      <p>✔️ This account has the <strong>verified</strong> badge and can create new #tags.</p>
+      <form method="post" action="{{ url_for('unverify_user', username=profile_user['username']) }}">
+        <button type="submit" class="btn btn-secondary btn-small">Remove verified badge</button>
+      </form>
+      {% else %}
+      <p class="muted small">Verified accounts (and admins) can create brand-new #tags. Everyone else can only use tags that already exist.</p>
+      <form method="post" action="{{ url_for('verify_user', username=profile_user['username']) }}">
+        <button type="submit" class="btn btn-primary btn-small">✔️ Grant verified badge</button>
+      </form>
+      {% endif %}
+
+      <div class="admin-panel-divider"></div>
+
+      <p class="muted small">Passwords are one-way hashed — nobody, including admin, can see them. If this user is locked out, reset it to a temporary one instead.</p>
+      <form method="post" action="{{ url_for('reset_password', username=profile_user['username']) }}"
+            onsubmit="return confirm('Reset {{ profile_user['username'] }}\'s password to a new temporary one? Their current password will stop working immediately.');">
+        <button type="submit" class="btn btn-secondary btn-small">🔑 Reset password</button>
+      </form>
+    </div>
+    {% endif %}
+
+    {% for post in posts %}
+    {% include "_post_card.html" %}
+    {% else %}
+    <div class="card empty-state">No broadcasts yet.</div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

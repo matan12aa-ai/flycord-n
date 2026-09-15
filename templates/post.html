@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Discussion — FlyCord{% endblock %}
+
+{% block content %}
+<div class="grid grid-single">
+  <section class="col-center">
+    <a href="{{ url_for('feed') }}" class="back-link">← Back to feed</a>
+
+    {% include "_post_card.html" %}
+
+    <div class="card">
+      <h3 class="card-title">Discussion</h3>
+      <form method="post" action="{{ url_for('comment_post', post_id=post['id']) }}" class="comment-form" id="comment-form">
+        <input type="text" name="content" placeholder="Write a reply..." maxlength="300" required>
+        <button type="submit" class="btn btn-primary btn-small">Reply</button>
+      </form>
+
+      <div class="comment-list" id="comment-list" data-post-id="{{ post['id'] }}" data-last-id="{{ comments[-1]['id'] if comments else 0 }}">
+        {% for c in comments %}
+        <div class="comment">
+          {{ avatar_html(c, 'avatar-sm') }}
+          <div class="comment-body">
+            <div class="comment-meta">
+              <strong>{{ c['username'] }}</strong>
+              {% if c['username'] in admin_usernames %}<span class="admin-badge" title="Admin">🛡️ Admin</span>
+              {% elif c['author_is_verified'] %}<span class="verified-badge" title="Verified">✔️ Verified</span>{% endif %}
+              <span class="post-time">{{ c['created_at'] | time_ago }}</span>
+            </div>
+            <div class="comment-text">{{ c['content'] | linkify }}</div>
+          </div>
+        </div>
+        {% else %}
+        <div class="muted" id="no-comments">No replies yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.FlyCord && window.FlyCord.initCommentLivePoll();
+</script>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Messages — FlyCord{% endblock %}
+
+{% block content %}
+<div class="grid grid-single">
+  <section class="col-center">
+    <div class="card">
+      <h3 class="card-title">✉️ Messages</h3>
+      {% if not conversations %}
+      <p class="muted small">No conversations yet. Visit someone's profile and hit "Message" to start one.</p>
+      {% endif %}
+      <div class="conversation-list">
+        {% for c in conversations %}
+        <a class="conversation-item" href="{{ url_for('message_thread', username=c['partner_username']) }}">
+          {{ avatar_html(c, 'avatar-md') }}
+          <div class="conversation-info">
+            <div class="conversation-top">
+              <span class="post-username">{{ c['partner_username'] }}</span>
+              <span class="post-time">{{ c['last_created_at'] | time_ago }}</span>
+            </div>
+            <div class="conversation-preview muted small">
+              {% if c['last_content'] %}{{ c['last_content'][:60] }}{% endif %}
+            </div>
+          </div>
+          {% if c['unread_count'] > 0 %}
+          <span class="unread-badge">{{ c['unread_count'] }}</span>
+          {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

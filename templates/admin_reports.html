@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Reports — FlyCord{% endblock %}
+
+{% block content %}
+<div class="grid grid-single">
+  <section class="col-center">
+    <div class="card">
+      <h3 class="card-title">🚩 Reports</h3>
+      <p class="muted small">Only admins can see this page. Reports don't auto-hide or auto-delete anything — review each one and decide what to do.</p>
+    </div>
+
+    <div class="tabs">
+      <a href="{{ url_for('admin_reports', status='open') }}" class="tab {% if status_filter == 'open' %}tab-active{% endif %}">Open{% if open_count %} ({{ open_count }}){% endif %}</a>
+      <a href="{{ url_for('admin_reports', status='resolved') }}" class="tab {% if status_filter == 'resolved' %}tab-active{% endif %}">Resolved</a>
+      <a href="{{ url_for('admin_reports', status='all') }}" class="tab {% if status_filter == 'all' %}tab-active{% endif %}">All</a>
+    </div>
+
+    {% for r in reports %}
+    <div class="card report-card">
+      <div class="report-card-header">
+        {{ avatar_html({'avatar': r['reporter_avatar'], 'avatar_image_filename': r['reporter_avatar_image_filename']}, 'avatar-sm') }}
+        <span class="post-username">{{ r['reporter_username'] }}</span>
+        <span class="muted small">reported this {{ r['target_type'] }} · {{ r['created_at'] | time_ago }}</span>
+        <span class="report-status-badge report-status-{{ r['status'] }}">{{ r['status'] }}</span>
+      </div>
+
+      <p class="report-target">
+        {% if not r['target_exists'] %}
+        {{ r['target_summary'] }}
+        {% elif r['target_type'] == 'broadcast' %}
+        <a href="{{ url_for('post_detail', post_id=r['target_id']) }}">{{ r['target_summary'] }}</a>
+        {% else %}
+        <a href="{{ url_for('user_profile', username=r['target_username']) }}">{{ r['target_summary'] }}</a>
+        {% endif %}
+      </p>
+
+      <p class="report-reason">“{{ r['reason'] }}”</p>
+
+      <div class="report-actions">
+        {% if r['status'] == 'open' %}
+        <form method="post" action="{{ url_for('resolve_report', report_id=r['id']) }}">
+          <button type="submit" class="btn btn-primary btn-small">Mark resolved</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('reopen_report', report_id=r['id']) }}">
+          <button type="submit" class="btn btn-secondary btn-small">Reopen</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="card empty-state">No {{ '' if status_filter == 'all' else status_filter }} reports.</div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

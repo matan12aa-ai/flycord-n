@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ partner['username'] }} — Messages — FlyCord{% endblock %}
+
+{% block content %}
+<div class="grid grid-single">
+  <section class="col-center">
+    <a href="{{ url_for('messages_inbox') }}" class="back-link">← Back to messages</a>
+
+    <div class="card chat-card">
+      <div class="chat-header">
+        {{ avatar_html(partner, 'avatar-md') }}
+        <a class="post-username" href="{{ url_for('user_profile', username=partner['username']) }}">{{ partner['username'] }}</a>
+      </div>
+
+      <div class="chat-messages" id="chat-messages" data-partner="{{ partner['username'] }}" data-last-id="{{ last_id }}">
+        {% for m in messages %}
+        <div class="chat-bubble {{ 'mine' if m['sender_id'] == current_user['id'] else 'theirs' }}" data-msg-id="{{ m['id'] }}">
+          {% if m['content'] %}<div class="bubble-text">{{ m['content'] }}</div>{% endif %}
+          <div class="bubble-time">{{ m['created_at'] | time_ago }}</div>
+        </div>
+        {% else %}
+        <div class="muted small" id="no-messages">Say hi to {{ partner['username'] }} 👋</div>
+        {% endfor %}
+      </div>
+
+      <form method="post" action="{{ url_for('send_message', username=partner['username']) }}" id="chat-form" class="chat-form">
+        <div class="chat-input-row">
+          <input type="text" name="content" id="chat-input" maxlength="{{ max_len }}" placeholder="Type a message...">
+          <button type="submit" class="btn btn-primary btn-small">Send</button>
+        </div>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.FlyCord && window.FlyCord.initChat();
+</script>
+{% endblock %}

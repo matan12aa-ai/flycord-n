@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Register — FlyCord{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="card auth-card">
+    <h2 class="brand-lg">FlyCord</h2>
+    <p class="muted">Create your node identity.</p>
+    <form method="post">
+      <label>Username</label>
+      <input type="text" name="username" pattern="[A-Za-z0-9_]{3,20}" required autofocus
+             title="3-20 characters: letters, numbers, underscore">
+      <label>Password</label>
+      <input type="password" name="password" required minlength="6" title="At least 6 characters">
+      <p class="muted small field-hint">At least 6 characters.</p>
+      <label>Confirm password</label>
+      <input type="password" name="confirm" required minlength="6">
+      <button type="submit" class="btn btn-primary btn-full">Create account</button>
+    </form>
+    <p class="muted small">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
+  </div>
+</div>
+{% endblock %}

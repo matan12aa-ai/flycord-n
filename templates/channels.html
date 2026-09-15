@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Channels — FlyCord{% endblock %}
+
+{% block content %}
+<div class="grid grid-single">
+  <section class="col-center">
+
+    {% if can_create_channels %}
+    <div class="card">
+      <h3 class="card-title">📢 Create a channel</h3>
+      <p class="muted small">Verified accounts and admins can create channels. Anyone can subscribe to them from here — subscribers get a "My Channels" tab in their Global Feed with everything you post into it. Channel creators stay anonymous — posts show the channel's name, not yours.</p>
+      <form method="post" action="{{ url_for('create_channel') }}" enctype="multipart/form-data">
+        <label>Channel name</label>
+        <input type="text" name="name" maxlength="40" minlength="3" required placeholder="e.g. Late Night News">
+        <label>Description (optional)</label>
+        <input type="text" name="description" maxlength="200" placeholder="What's this channel about?">
+
+        <label>Picture (optional)</label>
+        <div>
+          <input type="file" name="image" id="create-channel-image-input" accept="image/png,image/jpeg" hidden>
+          <div id="create-channel-image-preview" class="image-preview" hidden>
+            <span id="create-channel-image-filename" class="image-filename"></span>
+          </div>
+          <button type="button" class="btn btn-secondary btn-small image-trigger" data-target="create-channel-image-input" style="margin-top: 6px;">📷 Choose picture</button>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 14px;">Create channel</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="card">
+      <p class="muted small">Only verified accounts and admins can create channels — but anyone can subscribe to the ones below.</p>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <h3 class="card-title">🧭 All channels</h3>
+      <div class="channel-list">
+        {% for c in channels %}
+        <div class="channel-item">
+          {% if c['image_filename'] %}
+          <img class="avatar-md channel-avatar-img" src="{{ url_for('static', filename='uploads/' + c['image_filename']) }}" alt="">
+          {% else %}
+          <span class="avatar-md">📢</span>
+          {% endif %}
+          <div class="channel-info">
+            <div class="post-username">{{ c['name'] }}</div>
+            <div class="muted small">
+              {{ c['subscriber_count'] }} subscriber{{ 's' if c['subscriber_count'] != 1 else '' }}
+              · {{ c['post_count'] }} post{{ 's' if c['post_count'] != 1 else '' }}
+            </div>
+            {% if c['description'] %}<div class="channel-desc">{{ c['description'] }}</div>{% endif %}
+          </div>
+          <div class="channel-actions">
+            {% if c['subscribed'] %}
+            <form method="post" action="{{ url_for('unsubscribe_channel', slug=c['slug']) }}">
+              <button type="submit" class="btn btn-secondary btn-small">Subscribed ✓</button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('subscribe_channel', slug=c['slug']) }}">
+              <button type="submit" class="btn btn-primary btn-small">Subscribe</button>
+            </form>
+            {% endif %}
+            {% if is_admin or (current_user and current_user['id'] == c['owner_id']) %}
+            <form method="post" action="{{ url_for('delete_channel', slug=c['slug']) }}"
+                  onsubmit="return confirm('Delete this channel? Its past broadcasts stay up as regular posts.');">
+              <button type="submit" class="btn btn-danger btn-small">Delete</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <p class="muted small">No channels yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+  </section>
+</div>
+{% endblock %}

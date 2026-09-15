@@ -1,0 +1,950 @@
+/* Smooth cross-page navigation. This app does a full page reload on every
+   link click (no SPA framework), so without this every navigation is an
+   abrupt hard cut. This one at-rule opts every same-origin navigation into
+   a soft cross-fade automatically — it's a no-op (falls back to today's
+   instant cut, nothing breaks) in browsers that don't support it yet. */
+@view-transition {
+  navigation: auto;
+}
+
+:root {
+  --bg: #f3f4f7;
+  --card-bg: #ffffff;
+  --border: #e6e8ec;
+  --text: #1f2430;
+  --text-muted: #6b7280;
+  --accent: #4f7cba;
+  --accent-dark: #3f65a0;
+  --accent-soft: #e7edf8;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+html.dark {
+  --bg: #14161c;
+  --card-bg: #1c1f28;
+  --border: #2b2f3a;
+  --text: #e7e9ee;
+  --text-muted: #9aa1b1;
+  --accent: #6f97d3;
+  --accent-dark: #85a8dd;
+  --accent-soft: #26314a;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+a { text-decoration: none; color: inherit; }
+
+/* ---------- Navbar ---------- */
+
+.navbar {
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  view-transition-name: navbar;
+}
+
+.navbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+}
+
+.brand {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.nav-links {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+}
+.nav-links::-webkit-scrollbar { display: none; } /* Chrome/Safari/Edge */
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-link:hover { background: var(--accent-soft); color: var(--text); }
+.nav-link.active { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 6px;
+  border-radius: 8px;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.icon-btn:active { transform: scale(0.9); }
+#theme-toggle:active { transform: rotate(20deg) scale(0.9); }
+.icon-btn:hover { background: var(--accent-soft); }
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.logout-link {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.logout-link:hover { color: var(--danger); }
+
+/* ---------- Layout ---------- */
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 260px 1fr 260px;
+  gap: 20px;
+  align-items: start;
+}
+
+.grid-single {
+  grid-template-columns: 1fr;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.col-left, .col-right { position: sticky; top: 76px; }
+.col-center { min-width: 0; }
+
+@media (max-width: 960px) {
+  .grid { grid-template-columns: 1fr; }
+  .col-left, .col-right { position: static; }
+  .nav-links { display: none; }
+}
+
+/* ---------- Animations ----------
+   Respects prefers-reduced-motion — the decorative entrance/pop effects
+   are skipped entirely for anyone who's asked for reduced motion; the
+   hover/press feedback added elsewhere (via transition, not @keyframes)
+   is left in place since it's small and not disorienting. */
+
+@keyframes fade-slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.35); }
+  60% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+@keyframes flash-slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes details-reveal {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card, .tabs { animation: fade-slide-up 0.35s ease-out; }
+  .link-btn.liked .like-icon { animation: heart-pop 0.4s ease; }
+  .flash { animation: flash-slide-in 0.25s ease-out; }
+  details[open] > form,
+  details[open] > .report-form {
+    animation: details-reveal 0.2s ease-out;
+  }
+}
+
+/* ---------- Cards ---------- */
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Hidden by default (desktop has the horizontal .nav-links bar for this);
+   shown only on mobile — see the override at the very end of this file. */
+.mobile-nav-card { display: none; }
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.mobile-nav-link:hover { background: var(--accent-soft); }
+.mobile-nav-link.active { background: var(--accent-soft); color: var(--accent-dark); }
+
+.mobile-search-form {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 6px 6px 14px;
+  margin: 0 0 10px;
+}
+.mobile-search-form input {
+  border: none;
+  background: none;
+  padding: 4px 0;
+  font-size: 14px;
+  width: 100%;
+  color: var(--text);
+}
+.mobile-search-form input:focus { outline: none; }
+
+.muted { color: var(--text-muted); }
+.small { font-size: 13px; }
+
+/* ---------- Trends ---------- */
+
+.trend-list { list-style: none; margin: 0; padding: 0; }
+.trend-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.trend-list li:last-child { border-bottom: none; }
+.trend-tag { color: var(--accent); font-weight: 600; }
+.trend-tag:hover { text-decoration: underline; }
+.trend-count { color: var(--text-muted); font-size: 13px; }
+
+/* ---------- Composer ---------- */
+
+.composer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+textarea, input[type=text], input[type=password] {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+textarea:focus, input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+textarea, input[type=text], input[type=password] { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chars-left { font-size: 13px; color: var(--text-muted); }
+
+.image-preview {
+  margin-top: 10px;
+}
+.image-filename {
+  display: inline-block;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(15, 23, 42, 0.12); }
+.btn:active { transform: translateY(0) scale(0.97); box-shadow: none; }
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-secondary { background: var(--accent-soft); color: var(--accent-dark); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: #c0392b; }
+.btn-full { width: 100%; margin-top: 6px; }
+.btn-small { padding: 8px 14px; font-size: 13px; }
+
+/* ---------- Tabs ---------- */
+
+.tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.tab {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.tab:hover { background: var(--accent-soft); color: var(--text); }
+.tab:active { transform: scale(0.95); }
+.tab-active { background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent-soft); }
+.tab-active:hover { color: var(--accent-dark); }
+
+.filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px 12px;
+  font-size: 14px;
+}
+.clear-filter { color: var(--accent); font-weight: 600; }
+
+/* ---------- Posts ---------- */
+
+.post-card {
+  padding: 16px 18px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.post-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+}
+
+.post-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.post-username { font-weight: 700; font-size: 14px; }
+.post-time { color: var(--text-muted); font-size: 13px; }
+
+.post-content {
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 12px;
+}
+
+.tag-link { color: var(--accent); font-weight: 600; }
+.tag-link:hover { text-decoration: underline; }
+
+.post-image { margin-bottom: 12px; }
+.post-image img {
+  max-width: 100%;
+  max-height: 480px;
+  border-radius: 10px;
+  display: block;
+  object-fit: contain;
+}
+
+.post-video { margin-bottom: 12px; }
+.post-video video {
+  max-width: 100%;
+  max-height: 480px;
+  border-radius: 10px;
+  display: block;
+  background: #000;
+}
+
+.post-footer {
+  display: flex;
+  gap: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-size: 13px;
+}
+
+.inline-form { display: inline; }
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+.link-btn:hover { color: var(--text); }
+.link-btn:active { transform: scale(0.95); }
+.like-icon { display: inline-block; }
+.link-btn.liked { color: var(--danger); font-weight: 600; }
+.link-btn.delete-btn { margin-left: auto; }
+.link-btn.delete-btn:hover { color: var(--danger); }
+
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 2px;
+}
+
+.verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 2px;
+}
+html.dark .verified-badge { background: #1e2f4d; color: #7ab2ff; }
+
+.banned-badge { margin-left: 4px; }
+
+.empty-state { text-align: center; color: var(--text-muted); padding: 30px 0; }
+
+/* ---------- Reports ---------- */
+
+.report-details { margin-top: 10px; }
+.report-details-card {
+  margin-top: 0;
+  padding: 12px 18px;
+}
+.report-summary {
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  list-style: none;
+  display: inline-block;
+}
+.report-summary::-webkit-details-marker { display: none; }
+.report-summary:hover { color: var(--danger); }
+
+.report-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.report-form input { flex: 1; }
+
+.report-card { display: flex; flex-direction: column; gap: 8px; }
+.report-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.report-target { margin: 0; font-size: 14px; }
+.report-target a { color: var(--accent); }
+.report-reason {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+  font-size: 14px;
+  font-style: italic;
+}
+.report-actions { display: flex; gap: 8px; }
+
+.report-status-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.report-status-open { background: #fee2e2; color: #b91c1c; }
+.report-status-resolved { background: #dcfce7; color: #15803d; }
+html.dark .report-status-open { background: #3a1616; color: #f87171; }
+html.dark .report-status-resolved { background: #14311f; color: #4ade80; }
+
+/* ---------- Avatars ---------- */
+
+.avatar-sm, .avatar-md, .avatar-lg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  transition: transform 0.15s ease;
+}
+a:hover > .avatar-sm, a:hover > .avatar-md, a:hover > .avatar-lg,
+a:hover .avatar-img { transform: scale(1.08); }
+.avatar-sm { width: 30px; height: 30px; font-size: 16px; }
+.avatar-md { width: 40px; height: 40px; font-size: 20px; }
+.avatar-lg { width: 64px; height: 64px; font-size: 32px; }
+
+.avatar-img { object-fit: cover; display: block; }
+
+.avatar-guest { color: var(--text-muted); }
+.avatar-guest svg { width: 60%; height: 60%; }
+
+/* ---------- Node status ---------- */
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.status-row:last-child { border-bottom: none; }
+
+.badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.badge-active { background: #dcfce7; color: #16a34a; }
+html.dark .badge-active { background: #14311f; color: #4ade80; }
+
+/* ---------- Auth pages ---------- */
+
+.auth-wrap {
+  display: flex;
+  justify-content: center;
+  padding-top: 40px;
+}
+.auth-card { width: 100%; max-width: 380px; }
+.brand-lg { color: var(--accent); margin: 0 0 4px; text-align: center; }
+.auth-card .muted { text-align: center; }
+.card label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+.card label:first-child { margin-top: 0; }
+.field-hint { margin: 4px 0 0; }
+.auth-card .small { text-align: center; margin-top: 14px; }
+.auth-card a { color: var(--accent); font-weight: 600; }
+
+/* ---------- Profile ---------- */
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.profile-username { margin: 0; }
+.profile-bio { margin: 4px 0; }
+
+/* ---------- Settings ---------- */
+
+.current-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 4px;
+}
+.current-avatar-row .image-preview { margin-top: 8px; }
+
+.remove-picture-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.setting-row { display: flex; justify-content: space-between; align-items: center; }
+
+.switch { position: relative; display: inline-block; width: 42px; height: 24px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; cursor: pointer; inset: 0;
+  background: var(--border); border-radius: 999px; transition: 0.2s;
+}
+.slider::before {
+  content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px;
+  background: white; border-radius: 50%; transition: 0.2s;
+}
+.switch input:checked + .slider { background: var(--accent); }
+.switch input:checked + .slider::before { transform: translateX(18px); }
+
+form { margin: 0; }
+.card form + form { margin-top: 4px; }
+
+/* ---------- Explore ---------- */
+
+.user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.user-tile {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--border); border-radius: 10px; padding: 10px;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.user-tile:hover {
+  background: var(--accent-soft);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+/* ---------- Channels ---------- */
+
+.channel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 2px;
+}
+
+.channel-avatar-img {
+  object-fit: cover;
+}
+
+.channel-post-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.channel-post-picker label { color: var(--text-muted); font-weight: 600; margin: 0; }
+.channel-post-picker select {
+  flex: 1;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.channel-list { display: flex; flex-direction: column; gap: 12px; }
+.channel-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.channel-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+.channel-info { flex: 1; min-width: 0; }
+.channel-desc { font-size: 13px; margin-top: 4px; }
+.channel-actions { display: flex; flex-direction: column; gap: 6px; }
+
+/* ---------- Comments ---------- */
+
+.comment-form { display: flex; gap: 8px; margin-bottom: 14px; }
+.comment-form input { flex: 1; }
+
+.comment-list { display: flex; flex-direction: column; gap: 12px; }
+.comment { display: flex; gap: 10px; }
+.comment-meta { display: flex; gap: 8px; align-items: baseline; margin-bottom: 2px; }
+.comment-text { font-size: 14px; }
+
+.back-link { display: inline-block; margin-bottom: 12px; color: var(--accent); font-weight: 600; font-size: 14px; }
+
+/* ---------- Flash messages ---------- */
+
+.flash-wrap { max-width: 620px; margin: 0 auto 16px; }
+.flash {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.flash-error { background: #fee2e2; color: #b91c1c; }
+.flash-success { background: #dcfce7; color: #15803d; }
+html.dark .flash-error { background: #3a1616; color: #f87171; }
+html.dark .flash-success { background: #14311f; color: #4ade80; }
+
+/* ---------- Search bar ---------- */
+
+.search-form {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 4px 4px 14px;
+  flex: 0 1 200px;
+}
+.search-form input {
+  border: none;
+  background: none;
+  padding: 4px 0;
+  font-size: 13px;
+  width: 100%;
+}
+.search-form input:focus { outline: none; }
+.search-form .icon-btn { font-size: 14px; }
+
+/* ---------- Unread badge ---------- */
+
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.nav-link .unread-badge { margin-left: 2px; }
+
+/* ---------- Live-update flash ---------- */
+
+@keyframes new-post-flash {
+  from { background: var(--accent-soft); }
+  to { background: var(--card-bg); }
+}
+.new-post-flash { animation: new-post-flash 1.6s ease-out; }
+
+/* Placed after the rule above on purpose — see the cascade-order note by
+   the mobile-only overrides at the end of this file. A media-query rule
+   earlier in the file can get silently beaten by a later unconditional
+   rule targeting the same selector/property; this one has to come after
+   the plain .new-post-flash rule to actually win for non-reduced-motion
+   users. */
+@media (prefers-reduced-motion: no-preference) {
+  .new-post-flash { animation: fade-slide-up 0.35s ease-out, new-post-flash 1.6s ease-out; }
+}
+
+/* ---------- Conversations (inbox) ---------- */
+
+.conversation-list { display: flex; flex-direction: column; }
+.conversation-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s ease;
+}
+.conversation-item:last-child { border-bottom: none; }
+.conversation-item:hover { background: var(--accent-soft); border-radius: 10px; }
+.conversation-info { flex: 1; min-width: 0; }
+.conversation-top { display: flex; justify-content: space-between; align-items: baseline; }
+.conversation-preview {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Chat thread ---------- */
+
+.chat-card { display: flex; flex-direction: column; height: 70vh; padding: 0; overflow: hidden; }
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-bubble {
+  max-width: 70%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 14px;
+}
+.chat-bubble.theirs {
+  align-self: flex-start;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+.chat-bubble.mine {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-bubble.mine .bubble-time { color: rgba(255,255,255,0.75); }
+.bubble-text { white-space: pre-wrap; word-break: break-word; }
+.bubble-time { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+.chat-form {
+  border-top: 1px solid var(--border);
+  padding: 12px 16px;
+}
+.chat-input-row { display: flex; align-items: center; gap: 8px; }
+.chat-input-row input[type=text] { flex: 1; }
+
+/* ---------- Profile header layout tweak for message button ---------- */
+
+.profile-header-info { flex: 1; }
+
+/* ---------- Admin ban panel ---------- */
+
+.admin-panel { border: 1px solid var(--accent-soft); }
+.admin-panel p { margin: 0 0 12px; font-size: 14px; }
+
+.admin-panel-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+}
+
+.ban-form { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.ban-action-row { display: flex; gap: 10px; align-items: center; }
+.ban-duration-row { display: flex; align-items: center; gap: 8px; }
+.ban-amount { width: 70px; }
+.ban-unit { padding: 10px 12px; }
+
+/* ---------- Mobile-only overrides ----------
+   Kept at the very end of the file on purpose: with equal CSS specificity,
+   later rules win regardless of whether an earlier rule was inside a
+   @media block, so a mobile override placed earlier in the file can get
+   silently beaten by a later unconditional rule (e.g. .search-form's base
+   `display: flex` used to load after this and win on real phones). Adding
+   new mobile-only rules? Put them here, not further up. */
+@media (max-width: 960px) {
+  .search-form { display: none; }
+  .chars-left { display: none; }
+  .mobile-nav-card { display: flex; flex-direction: column; gap: 2px; }
+
+  /* Dark mode is desktop-only. Hiding the toggle isn't enough by itself —
+     someone could still be carrying a "dark" cookie/preference in from a
+     previous desktop visit on the same browser — so every dark-mode rule
+     is force-reset back to its light equivalent here too. That also means
+     there's nothing left that CAN flash on a phone: the theme is always
+     light on this screen size, full stop. */
+  #theme-toggle { display: none; }
+  html.dark {
+    --bg: #f3f4f7;
+    --card-bg: #ffffff;
+    --border: #e6e8ec;
+    --text: #1f2430;
+    --text-muted: #6b7280;
+    --accent: #4f7cba;
+    --accent-dark: #3f65a0;
+    --accent-soft: #e7edf8;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  html.dark .verified-badge { background: #dbeafe; color: #1d4ed8; }
+  html.dark .badge-active { background: #dcfce7; color: #16a34a; }
+  html.dark .flash-error { background: #fee2e2; color: #b91c1c; }
+  html.dark .flash-success { background: #dcfce7; color: #15803d; }
+
+  /* Animations off on mobile entirely — card entrances, hover lifts,
+     like-button pop, flash message slide-ins, button press scaling, all
+     become instant. Simpler/snappier on phones, and matches dark mode
+     also being desktop-only (see above). No exceptions — this applies to
+     every element, tabs included. */
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  *:hover, *:active {
+    transform: none !important;
+  }
+}

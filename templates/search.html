@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Search — FlyCord{% endblock %}
+
+{% block content %}
+<div class="grid grid-single">
+  <section class="col-center">
+    <div class="card">
+      <h3 class="card-title">🔍 Search results {% if q %}for "{{ q }}"{% endif %}</h3>
+      {% if not q %}
+      <p class="muted">Type something in the search bar above — usernames, bios, broadcast text, or #tags.</p>
+      {% endif %}
+    </div>
+
+    {% if q %}
+      <div class="card">
+        <h3 class="card-title">Users ({{ users | length }})</h3>
+        {% if users %}
+        <div class="user-grid">
+          {% for u in users %}
+          <a class="user-tile" href="{{ url_for('user_profile', username=u['username']) }}">
+            {{ avatar_html(u, 'avatar-md') }}
+            <div>
+              <div class="post-username">
+                {{ u['username'] }}
+                {% if u['username'] in admin_usernames %}<span class="admin-badge" title="Admin">🛡️ Admin</span>
+                {% elif u['is_verified'] %}<span class="verified-badge" title="Verified">✔️ Verified</span>{% endif %}
+              </div>
+              <div class="muted small">{{ u['post_count'] }} broadcast{{ 's' if u['post_count'] != 1 else '' }}</div>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted small">No matching users.</p>
+        {% endif %}
+      </div>
+
+      <h3 class="card-title" style="margin: 0 4px 10px;">Broadcasts ({{ posts | length }})</h3>
+      {% for post in posts %}
+      {% include "_post_card.html" %}
+      {% else %}
+      <div class="card empty-state">No matching broadcasts.</div>
+      {% endfor %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

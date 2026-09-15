@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en" class="{{ 'dark' if dark_theme else '' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}FlyCord{% endblock %}</title>
+  <script>
+    // The <html class="dark"> above (rendered server-side, from a cookie —
+    // see app.py's inject_user) is what actually prevents the flash: it's
+    // baked into the very first byte of HTML the server sends, so there's
+    // no client-side JS race to lose. This script is a fallback for the
+    // rare case cookies are blocked, and also migrates anyone with an old
+    // localStorage-only preference (from before the cookie existed) onto
+    // the cookie-based path immediately, rather than only after their next
+    // manual toggle.
+    (function () {
+      try {
+        if (!document.documentElement.classList.contains('dark')
+            && localStorage.getItem('flycord-theme') === 'dark') {
+          document.documentElement.classList.add('dark');
+          document.cookie = 'flycord_theme=dark; path=/; max-age=31536000; samesite=lax';
+        }
+      } catch (e) { /* localStorage unavailable (e.g. private browsing) — default to light */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ versioned_static('css/style.css') }}">
+
+  <!-- PWA install support — required on iOS for push notifications to be
+       possible at all; Safari tabs that aren't "installed" to the Home
+       Screen can't receive push notifications, that's an Apple platform
+       restriction, not something a website can work around. -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="FlyCord">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#4f7cba">
+</head>
+<body>
+  <header class="navbar">
+    <div class="navbar-inner">
+      <a class="brand" href="{{ url_for('feed') }}">FlyCord</a>
+
+      {% if current_user %}
+      <nav class="nav-links">
+        <a class="nav-link {% if request.endpoint == 'feed' %}active{% endif %}" href="{{ url_for('feed') }}">Global Feed</a>
+        <a class="nav-link {% if request.endpoint == 'explore' %}active{% endif %}" href="{{ url_for('explore') }}">Explore</a>
+        <a class="nav-link {% if request.endpoint == 'channels_list' %}active{% endif %}" href="{{ url_for('channels_list') }}">Channels</a>
+        <a class="nav-link {% if request.endpoint in ['messages_inbox','message_thread'] %}active{% endif %}" href="{{ url_for('messages_inbox') }}">
+          Messages
+          <span id="unread-badge" class="unread-badge" hidden>0</span>
+        </a>
+        <a class="nav-link {% if request.endpoint in ['profile_redirect','user_profile'] %}active{% endif %}" href="{{ url_for('profile_redirect') }}">My Profile</a>
+        <a class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}" href="{{ url_for('settings') }}">Settings</a>
+        {% if is_admin %}
+        <a class="nav-link {% if request.endpoint == 'admin_reports' %}active{% endif %}" href="{{ url_for('admin_reports') }}">
+          Reports
+          {% if admin_open_report_count %}<span class="unread-badge">{{ admin_open_report_count }}</span>{% endif %}
+        </a>
+        {% endif %}
+      </nav>
+
+      <form class="search-form" action="{{ url_for('search') }}" method="get">
+        <input type="text" name="q" placeholder="Search users, tags, broadcasts..."
+               value="{{ request.args.get('q', '') }}">
+        <button type="submit" class="icon-btn" title="Search">🔍</button>
+      </form>
+      {% endif %}
+
+      <div class="navbar-right">
+        <button id="theme-toggle" class="icon-btn" title="Toggle dark mode">🌙</button>
+        {% if current_user %}
+          <div class="user-chip">
+            {{ avatar_html(current_user, 'avatar-sm') }}
+            <span class="username">{{ current_user['username'] }}</span>
+          </div>
+          <a class="logout-link" href="{{ url_for('logout') }}">Logout</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    {% if current_user %}
+    <!-- Mobile-only navigation card. On phones the horizontal nav bar
+         above is hidden entirely (no room for it), so this is the only
+         way to reach Explore/Channels/Messages/Settings there — styled
+         to match the Trends card so it feels like part of the page. -->
+    <div class="card mobile-nav-card">
+      <form class="mobile-search-form" action="{{ url_for('search') }}" method="get">
+        <input type="text" name="q" placeholder="Search users, tags, broadcasts..."
+               value="{{ request.args.get('q', '') }}">
+        <button type="submit" class="icon-btn" title="Search">🔍</button>
+      </form>
+      <a class="mobile-nav-link {% if request.endpoint == 'feed' %}active{% endif %}" href="{{ url_for('feed') }}">Global Feed</a>
+      <a class="mobile-nav-link {% if request.endpoint == 'explore' %}active{% endif %}" href="{{ url_for('explore') }}">Explore</a>
+      <a class="mobile-nav-link {% if request.endpoint == 'channels_list' %}active{% endif %}" href="{{ url_for('channels_list') }}">Channels</a>
+      <a class="mobile-nav-link {% if request.endpoint in ['messages_inbox','message_thread'] %}active{% endif %}" href="{{ url_for('messages_inbox') }}">
+        Messages
+        <span id="unread-badge-mobile" class="unread-badge" hidden>0</span>
+      </a>
+      <a class="mobile-nav-link {% if request.endpoint in ['profile_redirect','user_profile'] %}active{% endif %}" href="{{ url_for('profile_redirect') }}">My Profile</a>
+      <a class="mobile-nav-link {% if request.endpoint == 'settings' %}active{% endif %}" href="{{ url_for('settings') }}">Settings</a>
+      {% if is_admin %}
+      <a class="mobile-nav-link {% if request.endpoint == 'admin_reports' %}active{% endif %}" href="{{ url_for('admin_reports') }}">
+        Reports
+        {% if admin_open_report_count %}<span class="unread-badge">{{ admin_open_report_count }}</span>{% endif %}
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-wrap">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ versioned_static('js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

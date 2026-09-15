@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Global Feed — FlyCord{% endblock %}
+
+{% block content %}
+<div class="grid">
+
+  <aside class="col-left">
+    <div class="card">
+      <h3 class="card-title">🔥 Trends</h3>
+      <ul class="trend-list" id="trend-list">
+        {% for name, count in trends %}
+        <li>
+          <a href="{{ url_for('feed', tag=name) }}" class="trend-tag">#{{ name }}</a>
+          <span class="trend-count">{{ count }} post{{ 's' if count != 1 else '' }}</span>
+        </li>
+        {% else %}
+        <li class="muted">No trends yet — start broadcasting!</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </aside>
+
+  <section class="col-center">
+    <div class="card composer">
+      <div class="composer-header">
+        {{ avatar_html(current_user, 'avatar-md') }}
+        <span class="composer-username">{{ current_user['username'] }}</span>
+      </div>
+      <form method="post" action="{{ url_for('broadcast') }}" id="composer-form" enctype="multipart/form-data">
+        <textarea name="content" id="broadcast-input" maxlength="{{ max_len }}"
+                  placeholder="Broadcast your message globally..." rows="3"></textarea>
+
+        <input type="file" name="image" id="composer-image-input" accept="image/png,image/jpeg" hidden>
+        <div id="composer-image-preview" class="image-preview" hidden>
+          <span id="composer-image-filename" class="image-filename"></span>
+        </div>
+
+        <input type="file" name="video" id="composer-video-input" accept="video/mp4,video/webm,video/quicktime,.mov" hidden>
+        <div id="composer-video-preview" class="image-preview" hidden>
+          <span id="composer-video-filename" class="image-filename"></span>
+        </div>
+
+        {% if my_channels %}
+        <div class="channel-post-picker">
+          <label for="composer-channel-select">Post to:</label>
+          <select name="channel_id" id="composer-channel-select">
+            <option value="">My personal feed</option>
+            {% for ch in my_channels %}
+            <option value="{{ ch['id'] }}">📢 {{ ch['name'] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+
+        <div class="composer-footer">
+          <div class="composer-actions">
+            <button type="button" class="btn btn-secondary btn-small image-trigger" data-target="composer-image-input">📷 Photo</button>
+            <button type="button" class="btn btn-secondary btn-small video-trigger" data-target="composer-video-input">🎥 Video</button>
+          </div>
+          <div class="composer-actions">
+            <span id="chars-left" class="chars-left">{{ max_len }} left</span>
+            <button type="submit" class="btn btn-primary">📡 Broadcast</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="tabs">
+      <a href="{{ url_for('feed', tag=tag) }}" class="tab {% if view == 'all' %}tab-active{% endif %}">Global All</a>
+      <a href="{{ url_for('feed', view='mine', tag=tag) }}" class="tab {% if view == 'mine' %}tab-active{% endif %}">My Broadcasts</a>
+      <a href="{{ url_for('feed', view='channels', tag=tag) }}" class="tab {% if view == 'channels' %}tab-active{% endif %}">My Channels</a>
+    </div>
+
+    {% if tag %}
+    <div class="filter-bar">
+      <span>Filtering by tag: <strong>#{{ tag }}</strong></span>
+      <a href="{{ url_for('feed', view=view) }}" class="clear-filter">Clear filter</a>
+    </div>
+    {% endif %}
+
+    <div id="post-list"
+         data-view="{{ view }}"
+         data-tag="{{ tag or '' }}"
+         data-last-id="{{ posts[0]['id'] if posts else 0 }}">
+      {% for post in posts %}
+      {% include "_post_card.html" %}
+      {% else %}
+      <div class="card empty-state" id="empty-state">
+        {% if view == 'channels' %}
+        You're not subscribed to any channels yet — <a href="{{ url_for('channels_list') }}">browse channels</a>.
+        {% else %}
+        No broadcasts here yet{% if tag %} for #{{ tag }}{% endif %}. Be the first!
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <aside class="col-right">
+    <div class="card" id="node-status">
+      <h3 class="card-title">🖥️ Node Status</h3>
+      <div class="status-row"><span>Status</span> <span class="badge badge-active" id="status-value">Active</span></div>
+      <div class="status-row"><span>Ping</span> <span id="ping-value">—</span></div>
+      <div class="status-row"><span>Protocol</span> <span id="protocol-value">v4.2-Global</span></div>
+      <div class="status-row"><span>Users online</span> <span id="users-value">—</span></div>
+    </div>
+  </aside>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const input = document.getElementById('broadcast-input');
+  const counter = document.getElementById('chars-left');
+  const maxLen = {{ max_len }};
+  if (input) {
+    input.addEventListener('input', () => {
+      counter.textContent = (maxLen - input.value.length) + ' left';
+    });
+  }
+
+  // Kick off live feed polling (defined in main.js)
+  window.FlyCord && window.FlyCord.initFeedLivePoll();
+</script>
+{% endblock %}

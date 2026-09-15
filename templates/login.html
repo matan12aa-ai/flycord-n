@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Log in — FlyCord{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="card auth-card">
+    <h2 class="brand-lg">FlyCord</h2>
+    <p class="muted">Log in to your node.</p>
+    <form method="post">
+      <label>Username</label>
+      <input type="text" name="username" required autofocus>
+      <label>Password</label>
+      <input type="password" name="password" required>
+      <button type="submit" class="btn btn-primary btn-full">Log in</button>
+    </form>
+    <p class="muted small">No account? <a href="{{ url_for('register') }}">Register here</a></p>
+  </div>
+</div>
+{% endblock %}

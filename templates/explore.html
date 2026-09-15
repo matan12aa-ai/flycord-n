@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Explore — FlyCord{% endblock %}
+
+{% block content %}
+<div class="grid">
+  <aside class="col-left">
+    <div class="card">
+      <h3 class="card-title">🔥 Trending tags</h3>
+      <ul class="trend-list">
+        {% for name, count in trends %}
+        <li>
+          <a href="{{ url_for('feed', tag=name) }}" class="trend-tag">#{{ name }}</a>
+          <span class="trend-count">{{ count }}</span>
+        </li>
+        {% else %}
+        <li class="muted">No tags yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </aside>
+
+  <section class="col-center">
+    <div class="card">
+      <h3 class="card-title">🧭 Global users database</h3>
+      <p class="muted small">Everyone connected to this node.</p>
+      <div class="user-grid">
+        {% for u in users %}
+        <a class="user-tile" href="{{ url_for('user_profile', username=u['username']) }}">
+          {{ avatar_html(u, 'avatar-md') }}
+          <div>
+            <div class="post-username">
+              {{ u['username'] }}
+              {% if u['username'] in admin_usernames %}<span class="admin-badge" title="Admin">🛡️ Admin</span>
+              {% elif u['is_verified'] %}<span class="verified-badge" title="Verified">✔️ Verified</span>{% endif %}
+              {% if is_admin and u['is_banned'] %}<span class="banned-badge" title="Banned">🚫</span>{% endif %}
+            </div>
+            <div class="muted small">{{ u['post_count'] }} broadcast{{ 's' if u['post_count'] != 1 else '' }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
