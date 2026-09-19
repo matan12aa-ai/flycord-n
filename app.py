@@ -424,6 +424,15 @@ def init_db():
         db.execute("ALTER TABLE channels ADD COLUMN image_filename TEXT")
         db.commit()
 
+    # Lightweight migration for DBs created before DM photo/video attachments.
+    message_cols = {row[1] for row in db.execute("PRAGMA table_info(messages)")}
+    if "image_filename" not in message_cols:
+        db.execute("ALTER TABLE messages ADD COLUMN image_filename TEXT")
+        db.commit()
+    if "video_filename" not in message_cols:
+        db.execute("ALTER TABLE messages ADD COLUMN video_filename TEXT")
+        db.commit()
+
     db.close()
 
 
@@ -1228,13 +1237,32 @@ def send_message(username):
 
     content = request.form.get("content", "").strip()
 
-    if not content:
+    image_filename, image_error = save_uploaded_image(request.files.get("image"))
+    if image_error:
+        if wants_json():
+            return jsonify({"error": image_error}), 400
+        flash(image_error, "error")
+        return redirect(url_for("message_thread", username=username))
+
+    video_filename, video_error = save_uploaded_video(request.files.get("video"))
+    if video_error:
+        delete_uploaded_file(image_filename)
+        if wants_json():
+            return jsonify({"error": video_error}), 400
+        flash(video_error, "error")
+        return redirect(url_for("message_thread", username=username))
+
+    if not content and not image_filename and not video_filename:
+        delete_uploaded_file(image_filename)
+        delete_uploaded_file(video_filename)
         if wants_json():
             return jsonify({"error": "Message can't be empty."}), 400
         flash("Message can't be empty.", "error")
         return redirect(url_for("message_thread", username=username))
 
     if len(content) > MESSAGE_MAX_LEN:
+        delete_uploaded_file(image_filename)
+        delete_uploaded_file(video_filename)
         if wants_json():
             return jsonify({"error": "Message too long."}), 400
         flash(f"Message too long (max {MESSAGE_MAX_LEN} characters).", "error")
@@ -1242,16 +1270,18 @@ def send_message(username):
 
     now = datetime.now(timezone.utc).isoformat()
     cur = db.execute(
-        "INSERT INTO messages (sender_id, receiver_id, content, created_at) VALUES (?, ?, ?, ?)",
-        (uid, partner["id"], content, now),
+        "INSERT INTO messages (sender_id, receiver_id, content, image_filename, video_filename, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (uid, partner["id"], content, image_filename, video_filename, now),
     )
     db.commit()
 
     me = current_user()
+    push_preview = content[:120] if content else ("📷 Sent a photo" if image_filename else "🎥 Sent a video")
     send_push_to_user(
         partner["id"],
         title=f"{me['username']} sent you a message",
-        body=content[:120],
+        body=push_preview,
         url=f"/messages/{me['username']}",
     )
 
@@ -1262,6 +1292,8 @@ def send_message(username):
             "username": me["username"],
             "avatar": me["avatar"],
             "content": content,
+            "image_url": url_for("static", filename="uploads/" + image_filename) if image_filename else None,
+            "video_url": url_for("static", filename="uploads/" + video_filename) if video_filename else None,
             "created_at": now,
         })
 
@@ -1442,12 +1474,19 @@ def delete_user(username):
         return redirect(request.referrer or url_for("user_profile", username=username))
 
     # Clean up any uploaded image/video files before the DB rows (and their
-    # cascade-deleted broadcasts) disappear — otherwise they'd be orphaned
-    # on disk forever.
+    # cascade-deleted broadcasts/messages) disappear — otherwise they'd be
+    # orphaned on disk forever.
     media_rows = db.execute(
         """
         SELECT image_filename, video_filename FROM broadcasts
         WHERE user_id = ? AND (image_filename IS NOT NULL OR video_filename IS NOT NULL)
+        """,
+        (target["id"],),
+    ).fetchall()
+    message_media_rows = db.execute(
+        """
+        SELECT image_filename, video_filename FROM messages
+        WHERE sender_id = ? AND (image_filename IS NOT NULL OR video_filename IS NOT NULL)
         """,
         (target["id"],),
     ).fetchall()
@@ -1457,6 +1496,9 @@ def delete_user(username):
     db.commit()
 
     for row in media_rows:
+        delete_uploaded_file(row["image_filename"])
+        delete_uploaded_file(row["video_filename"])
+    for row in message_media_rows:
         delete_uploaded_file(row["image_filename"])
         delete_uploaded_file(row["video_filename"])
 
@@ -1971,6 +2013,8 @@ def api_message_updates(username):
         "username": r["username"],
         "avatar": r["avatar"],
         "content": r["content"],
+        "image_url": url_for("static", filename="uploads/" + r["image_filename"]) if r["image_filename"] else None,
+        "video_url": url_for("static", filename="uploads/" + r["video_filename"]) if r["video_filename"] else None,
         "created_at": r["created_at"],
         "is_mine": r["sender_id"] == uid,
     } for r in rows]
@@ -1989,11 +2033,9 @@ def api_unread_count():
 
 
 if __name__ == "__main__":
-  if not os.path.exists(DB_PATH):
-    init_db()
-  else:
-    # make sure tables exist even if the db file was created empty
-    init_db()
-
-  port = int(os.environ.get("PORT", 5000))
-  app.run(host="0.0.0.0", port=port)
+    if not os.path.exists(DB_PATH):
+        init_db()
+    else:
+        # make sure tables exist even if the db file was created empty
+        init_db()
+    app.run(host="0.0.0.0", port=5000, debug=True)

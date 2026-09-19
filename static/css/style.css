@@ -870,6 +870,16 @@ html.dark .flash-success { background: #14311f; color: #4ade80; }
 .bubble-text { white-space: pre-wrap; word-break: break-word; }
 .bubble-time { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 
+.bubble-media { margin: -2px -6px 6px; }
+.bubble-media img, .bubble-media video {
+  display: block;
+  width: 100%;
+  max-width: 240px;
+  max-height: 320px;
+  border-radius: 12px;
+  background: #000;
+}
+
 .chat-form {
   border-top: 1px solid var(--border);
   padding: 12px 16px;

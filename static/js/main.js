@@ -297,6 +297,8 @@
     el.className = 'chat-bubble ' + (mine ? 'mine' : 'theirs');
     el.dataset.msgId = m.id;
     el.innerHTML = `
+      ${m.image_url ? `<div class="bubble-media"><img src="${m.image_url}" alt="Photo" loading="lazy"></div>` : ''}
+      ${m.video_url ? `<div class="bubble-media"><video controls preload="metadata" src="${m.video_url}"></video></div>` : ''}
       ${m.content ? `<div class="bubble-text">${escapeHtml(m.content)}</div>` : ''}
       <div class="bubble-time">just now</div>
     `;
@@ -332,23 +334,30 @@
 
     const form = document.getElementById('chat-form');
     const input = document.getElementById('chat-input');
+    const imageInput = document.getElementById('chat-image-input');
+    const videoInput = document.getElementById('chat-video-input');
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const content = input.value.trim();
-      if (!content) return;
+      const hasImage = imageInput && imageInput.files && imageInput.files.length;
+      const hasVideo = videoInput && videoInput.files && videoInput.files.length;
+      if (!content && !hasImage && !hasVideo) return;
 
-      fetchJSON(form.action, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'content=' + encodeURIComponent(content),
-      })
+      const formData = new FormData();
+      formData.append('content', content);
+      if (hasImage) formData.append('image', imageInput.files[0]);
+      if (hasVideo) formData.append('video', videoInput.files[0]);
+
+      fetchJSON(form.action, { method: 'POST', body: formData })
         .then((m) => {
           const noMsg = document.getElementById('no-messages');
           if (noMsg) noMsg.remove();
           box.appendChild(buildBubble(m, true));
           box.dataset.lastId = Math.max(Number(box.dataset.lastId || 0), m.id);
           input.value = '';
+          clearMediaInput('chat-image-input');
+          clearMediaInput('chat-video-input');
           scrollToBottom();
         })
         .catch(() => { form.submit(); });
